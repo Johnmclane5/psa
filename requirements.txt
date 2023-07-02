@@ -1,8 +1,4 @@
-beautifulsoup4==4.9.3
-cloudscraper==1.2.58
-concurrent.futures==3.2.0
-requests==2.26.0
-telebot==0.0.5
 requests
 cloudscraper
 bs4
+telebot==0.0.5
