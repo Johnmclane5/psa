@@ -1,29 +1,31 @@
+import telebot
 import time
-import requests 
+import requests
 import re
-import cloudscraper 
+import cloudscraper
 import concurrent.futures
-from bs4  import BeautifulSoup
-import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler
-from telegram.ext.filters import Filters
+from bs4 import BeautifulSoup
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+# Replace 'YOUR_API_TOKEN' with your actual Telegram Bot API token
+bot = telebot.TeleBot('5820612315:AAFP2y6cv5b0GOC9i9D6-1Ef0m_rAgGIyoY')
 
-logger = logging.getLogger(__name__)
+@bot.message_handler(commands=['start'])
+def send_instructions(message):
+    instructions = "Send me a movie URL and I will bypass the PSA links for you."
+    bot.reply_to(message, instructions)
 
-# Telegram bot token
-TOKEN = '5820612315:AAFP2y6cv5b0GOC9i9D6-1Ef0m_rAgGIyoY'
-
-
-
-client = cloudscraper.create_scraper(allow_brotli=False)
-
+@bot.message_handler(func=lambda message: True)
+def bypass_psa_links(message):
+    url = message.text
+    try:
+        bypassed_links = psa_bypasser(url)
+        bot.reply_to(message, bypassed_links)
+    except Exception as e:
+        error_message = f"An error occurred: {str(e)}"
+        bot.reply_to(message, error_message)
 
 def try2link_bypass(url):
+    client = cloudscraper.create_scraper(allow_brotli=False)
     url = url[:-1] if url[-1] == '/' else url
     params = (('d', int(time.time()) + (60 * 4)),)
     r = client.get(url, params=params, headers={'Referer': 'https://newforex.online/'})
@@ -36,70 +38,37 @@ def try2link_bypass(url):
     bypassed_url = client.post('https://try2link.com/links/go', headers=headers, data=data)
     return bypassed_url.json()["url"]
 
-
 def try2link_scrape(url):
+    client = cloudscraper.create_scraper(allow_brotli=False)
     h = {
         'upgrade-insecure-requests': '1',
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36',
     }
     res = client.get(url, cookies={}, headers=h)
-    url = 'https://try2link.com/' + re.findall('try2link\.com\/(.*?) ', res.text)[0]
-    return try2link_bypass(url)
-
+    matches = re.findall(r'try2link\.com/(.*?)\s', res.text)
+    if matches:
+        try2link_url = 'https://try2link.com/' + matches[0]
+        return try2link_bypass(try2link_url)
+    else:
+        raise Exception("Unable to find try2link URL in the response.")
 
 def psa_bypasser(psa_url):
+    client = cloudscraper.create_scraper(allow_brotli=False)
     r = client.get(psa_url)
     soup = BeautifulSoup(r.text, "html.parser").find_all(
         class_="dropshadowboxes-drop-shadow dropshadowboxes-rounded-corners dropshadowboxes-inside-and-outside-shadow dropshadowboxes-lifted-both dropshadowboxes-effect-default")
+
+    bypassed_links = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
         for link in soup:
             try:
                 exit_gate = link.a.get("href")
-                executor.submit(try2link_scrape, exit_gate)
-            except:
-                pass
+                bypassed_link = try2link_scrape(exit_gate)
+                bypassed_links.append(bypassed_link)
+            except Exception as e:
+                error_message = f"An error occurred while bypassing a link: {str(e)}"
+                print("Wrok In Progress..")
 
+    return '\n'.join(bypassed_links)
 
-def generate_bypassed_link(url):
-    if 'psa_bypasser(' in url:
-        url = url.replace('psa_bypasser("', '').replace('")', '')
-        psa_bypasser(url)
-        return "Bypassing PSA links..."
-    else:
-        return "Invalid command."
-
-
-def start(update, context):
-    """Send a welcome message when the /start command is issued."""
-    update.message.reply_text('Welcome to the Link Bypasser Bot!')
-
-
-def bypass_link(update, context):
-    """Extract the URL from the message and reply with a bypassed link."""
-    message = update.message.text
-    bypassed_link = generate_bypassed_link(message)
-    update.message.reply_text(bypassed_link)
-
-
-def main() -> None:
-    # Create the Updater and pass in the bot's token
-    updater = Updater(TOKEN, use_context=True)
-
-    # Get the dispatcher to register handlers
-    dp = updater.dispatcher
-
-    # Define the command handlers
-    dp.add_handler(CommandHandler("start", start))
-
-    # Define the message handler
-    dp.add_handler(MessageHandler(Filters.text & (~Filters.command), bypass_link))
-
-    # Start the bot
-    updater.start_polling()
-
-    # Run the bot until you press Ctrl-C
-    updater.idle()
-
-
-if __name__ == '__main__':
-    main()
+bot.polling()
