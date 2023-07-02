@@ -7,7 +7,7 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 
 # Replace '6372197549:AAE5dlIJwNw37_JISdtYmCrBfW9vSFila2s' with your actual Telegram Bot API token
-bot = telebot.TeleBot('YOUR_API_TOKEN')
+bot = telebot.TeleBot('6372197549:AAE5dlIJwNw37_JISdtYmCrBfW9vSFila2s')
 
 @bot.message_handler(commands=['start'])
 def send_instructions(message):
